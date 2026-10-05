@@ -1,32 +1,34 @@
 import { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { AuthPage } from '@/pages/AuthPage';
-import { AppShell, type Route } from '@/components/AppShell';
-import { Dashboard } from '@/pages/Dashboard';
-import { Products } from '@/pages/Products';
-import { Categories } from '@/pages/Categories';
-import { BusinessSettings } from '@/pages/BusinessSettings';
-import { ProductDetails } from '@/pages/ProductDetails';
-import { Customers } from '@/pages/Customers';
-import { CustomerDetails } from '@/pages/CustomerDetails';
-import { Sales } from '@/pages/Sales';
-import { CreateSale } from '@/pages/CreateSale';
-import { SaleDetails } from '@/pages/SaleDetails';
-import { Suppliers } from '@/pages/Suppliers';
-import { SupplierDetails } from '@/pages/SupplierDetails';
-import { Purchases } from '@/pages/Purchases';
-import { CreatePurchase } from '@/pages/CreatePurchase';
-import { PurchaseDetails } from '@/pages/PurchaseDetails';
-import { Expenses } from '@/pages/Expenses';
-import { Withdrawals } from '@/pages/Withdrawals';
-import { Accounts } from '@/pages/Accounts';
-import { Deliveries } from '@/pages/Deliveries';
-import { Wastage } from '@/pages/Wastage';
-import { Reports } from '@/pages/Reports';
-import { Spinner } from '@/components/ui/Feedback';
+import { useAuth } from './context/AuthContext';
+import { AuthPage } from './pages/AuthPage';
+import { AppShell, type Route } from './components/AppShell';
+import { Dashboard } from './pages/Dashboard';
+import { Products } from './pages/Products';
+import { Categories } from './pages/Categories';
+import { BusinessSettings } from './pages/BusinessSettings';
+import { ProductDetails } from './pages/ProductDetails';
+import { Customers } from './pages/Customers';
+import { CustomerDetails } from './pages/CustomerDetails';
+import { Sales } from './pages/Sales';
+import { CreateSale } from './pages/CreateSale';
+import { SaleDetails } from './pages/SaleDetails';
+import { Suppliers } from './pages/Suppliers';
+import { SupplierDetails } from './pages/SupplierDetails';
+import { Purchases } from './pages/Purchases';
+import { CreatePurchase } from './pages/CreatePurchase';
+import { PurchaseDetails } from './pages/PurchaseDetails';
+import { Expenses } from './pages/Expenses';
+import { Withdrawals } from './pages/Withdrawals';
+import { Accounts } from './pages/Accounts';
+import { Deliveries } from './pages/Deliveries';
+import { Wastage } from './pages/Wastage';
+import { Reports } from './pages/Reports';
+import { Spinner } from './components/ui/Feedback';
+import { SplashLoader } from './components/SplashLoader';
 
 function App() {
   const { session, loading } = useAuth();
+  const [showSplash, setShowSplash] = useState(true);
   const [route, setRoute] = useState<Route>('dashboard');
   const [productId, setProductId] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -128,7 +130,7 @@ function App() {
         return <Withdrawals />;
       case 'accounts':
         return <Accounts />;
-      case 'delivery':
+      case 'deliveries':
         return <Deliveries onNavigate={navigate} />;
       case 'wastage':
         return <Wastage />;
@@ -140,9 +142,12 @@ function App() {
   };
 
   return (
-    <AppShell currentRoute={route} onNavigate={navigate}>
-      {renderRoute()}
-    </AppShell>
+    <>
+      {showSplash && <SplashLoader onComplete={() => setShowSplash(false)} />}
+      <AppShell currentRoute={route} onNavigate={navigate}>
+        {renderRoute()}
+      </AppShell>
+    </>
   );
 }
 
