@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .animate-slide-in {
+    animation: slide-in 0.2s ease-out;
+  }
+  .animate-slide-up {
+    animation: slide-up 0.25s ease-out;
+  }
+  .animate-slide-in-left {
+    animation: slide-in-left 0.2s ease-out;
+  }
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+  }
+  .animate-scale-in {
+    animation: scale-in 0.2s ease-out;
+  }
+  .animate-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(30, 41, 59, 0) 0%,
+      rgba(51, 65, 85, 0.4) 50%,
+      rgba(30, 41, 59, 0) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+  .stagger-1 { animation-delay: 0.05s; animation-fill-mode: both; }
+  .stagger-2 { animation-delay: 0.1s; animation-fill-mode: both; }
+  .stagger-3 { animation-delay: 0.15s; animation-fill-mode: both; }
+  .stagger-4 { animation-delay: 0.2s; animation-fill-mode: both; }
+  .stagger-5 { animation-delay: 0.25s; animation-fill-mode: both; }
+  .stagger-6 { animation-delay: 0.3s; animation-fill-mode: both; }
+  .stagger-7 { animation-delay: 0.35s; animation-fill-mode: both; }
+  .stagger-8 { animation-delay: 0.4s; animation-fill-mode: both; }
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(1rem); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(1rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Remove number input spinners for cleaner look */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Prevent horizontal scroll on mobile */
+body {
+  overflow-x: hidden;
+  background-color: #0f172a;
+}
+
+/* Dark scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Dark select dropdown options */
+select option {
+  background-color: #1e293b;
+  color: #f1f5f9;
+}
+
+/* Print styles */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+}
+.print-only {
+  display: none;
+}
