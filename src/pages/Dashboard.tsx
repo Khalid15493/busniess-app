@@ -1,351 +1,164 @@
-import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/context/AuthContext';
-import { StatCard, Card, Badge } from '@/components/ui';
-import { EmptyState, LoadingPage as LP } from '@/components/ui/Feedback';
-import { formatCurrency, formatQuantity, formatDateTime, type ProductWithStock, type Sale, type Purchase } from '@/types';
-import { fetchProducts, fetchTotalStockValue } from '@/services/products';
-import { fetchSalesSummary, fetchSales } from '@/services/sales';
-import { fetchTodayExpenses } from '@/services/expenses';
-import { fetchSuppliers } from '@/services/suppliers';
-import { fetchTotalAccountBalance } from '@/services/accounts';
-import { fetchTotalWithdrawals } from '@/services/finance';
-import { fetchPurchases } from '@/services/purchases';
-import { fetchSalesChart, type SalesChartPoint } from '@/services/reports';
-import {
-  TrendingUp,
-  Wallet,
-  Package,
-  Users,
-  Truck,
-  AlertTriangle,
-  DollarSign,
-  Banknote,
-  Receipt,
-  ArrowRight,
-  ShoppingCart,
-} from 'lucide-react';
-import type { Route } from '@/components/AppShell';
+import React, { useEffect, useState } from 'react';
+import { type Route } from '../components/AppShell';
+import { FinancialPulse } from '../components/FinancialPulse';
+import { supabase } from '../lib/supabase';
+import { ShoppingBag, TrendingUp, Users, Package, Plus, ArrowUpRight } from 'lucide-react';
 
-type ChartPeriod = 'today' | '7d' | '30d' | '12m';
+interface DashboardProps {
+  onNavigate: (route: Route) => void;
+}
 
-export function Dashboard({ onNavigate }: { onNavigate: (route: Route, params?: { saleId?: string }) => void }) {
-  const { businessProfile } = useAuth();
-  const currency = businessProfile?.currency ?? 'BDT';
-
-  const [products, setProducts] = useState<ProductWithStock[]>([]);
-  const [todaySales, setTodaySales] = useState(0);
-  const [todayProfit, setTodayProfit] = useState(0);
-  const [totalReceivable, setTotalReceivable] = useState(0);
-  const [todayExpenses, setTodayExpenses] = useState(0);
-  const [supplierPayable, setSupplierPayable] = useState(0);
-  const [cashBalance, setCashBalance] = useState(0);
-  const [ownerWithdrawals, setOwnerWithdrawals] = useState(0);
-  const [stockValue, setStockValue] = useState(0);
+export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
+  const [stats, setStats] = useState({
+    revenue: 0,
+    expenses: 0,
+    profit: 0,
+    cashBalance: 0,
+    totalOrders: 0,
+    totalProducts: 0,
+    totalCustomers: 0,
+  });
   const [loading, setLoading] = useState(true);
-  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('7d');
-  const [chartData, setChartData] = useState<SalesChartPoint[]>([]);
-  const [recentSales, setRecentSales] = useState<Sale[]>([]);
-  const [recentPurchases, setRecentPurchases] = useState<Purchase[]>([]);
-  const [topProducts, setTopProducts] = useState<{ name: string; unitsSold: number; revenue: number }[]>([]);
 
   useEffect(() => {
-    Promise.all([
-      fetchProducts({ activeOnly: true }),
-      fetchSalesSummary(),
-      fetchTodayExpenses(),
-      fetchSuppliers({ activeOnly: true }),
-      fetchTotalAccountBalance(),
-      fetchTotalWithdrawals(),
-      fetchTotalStockValue(),
-      fetchSales({ status: 'all' }),
-      fetchPurchases(),
-    ])
-      .then(async ([prods, summary, expenses, suppliers, acctBalance, withdrawals, sValue, sales, purchases]) => {
-        setProducts(prods);
-        setTodaySales(summary.todaySales);
-        setTodayProfit(summary.todayProfit);
-        setTotalReceivable(summary.totalReceivable);
-        setTodayExpenses(expenses);
-        setCashBalance(acctBalance);
-        setOwnerWithdrawals(withdrawals);
-        setStockValue(sValue);
-        setRecentSales(sales.slice(0, 5));
-        setRecentPurchases(purchases.slice(0, 5));
+    async function fetchDashboardStats() {
+      try {
+        setLoading(true);
 
-        // Supplier payables
-        try {
-          const { data: supplierTxns } = await supabase
-            .from('supplier_transactions')
-            .select('amount');
-          setSupplierPayable((supplierTxns ?? []).reduce((s, t) => s + Number(t.amount), 0));
-        } catch { /* ignore */ }
+        // Fetch Sales
+        const { data: salesData } = await supabase.from('sales').select('total_amount');
+        const totalRevenue = salesData?.reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0) || 0;
 
-        // Top products from recent sales
-        try {
-          const recentSaleIds = sales.slice(0, 50).map((s) => s.id);
-          if (recentSaleIds.length > 0) {
-            const { data: items } = await supabase
-              .from('sale_items')
-              .select('product_id, quantity, line_total, product:products(name)')
-              .in('sale_id', recentSaleIds);
-            const prodAgg = new Map<string, { name: string; unitsSold: number; revenue: number }>();
-            for (const si of items ?? []) {
-              const name = (si.product as any)?.name ?? 'Unknown';
-              const existing = prodAgg.get(si.product_id) ?? { name, unitsSold: 0, revenue: 0 };
-              existing.unitsSold += Number(si.quantity);
-              existing.revenue += Number(si.line_total);
-              prodAgg.set(si.product_id, existing);
-            }
-            setTopProducts([...prodAgg.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 5));
-          }
-        } catch { /* ignore */ }
-      })
-      .catch(() => { setProducts([]); })
-      .finally(() => setLoading(false));
+        // Fetch Expenses
+        const { data: expensesData } = await supabase.from('expenses').select('amount');
+        const totalExpenses = expensesData?.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0) || 0;
+
+        // Fetch Products Count
+        const { count: productCount } = await supabase.from('products').select('*', { count: 'exact', head: true });
+
+        // Fetch Customers Count
+        const { count: customerCount } = await supabase.from('customers').select('*', { count: 'exact', head: true });
+
+        const netProfit = totalRevenue - totalExpenses;
+
+        setStats({
+          revenue: totalRevenue,
+          expenses: totalExpenses,
+          profit: netProfit,
+          cashBalance: netProfit, // Simplified Cash Balance logic
+          totalOrders: salesData?.length || 0,
+          totalProducts: productCount || 0,
+          totalCustomers: customerCount || 0,
+        });
+      } catch (err) {
+        console.error('Error fetching dashboard stats:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchDashboardStats();
   }, []);
 
-  useEffect(() => {
-    fetchSalesChart(chartPeriod).then(setChartData).catch(() => {});
-  }, [chartPeriod]);
-
-  const chartMax = useMemo(() => Math.max(...chartData.map((d) => d.total), 1), [chartData]);
-  const lowStockProducts = products.filter((p) => p.stock_status === 'LOW_STOCK' || p.stock_status === 'OUT_OF_STOCK');
-
-  if (loading) return <LP message="Loading dashboard..." />;
-
-  const stats = [
-    { label: "Today's Sales", value: formatCurrency(todaySales, currency), icon: <DollarSign className="w-5 h-5" />, variant: 'success' as const },
-    { label: "Today's Profit", value: formatCurrency(todayProfit, currency), icon: <TrendingUp className="w-5 h-5" />, variant: 'info' as const },
-    { label: "Today's Expenses", value: formatCurrency(todayExpenses, currency), icon: <Wallet className="w-5 h-5" />, variant: 'danger' as const },
-    { label: 'Receivable', value: formatCurrency(totalReceivable, currency), icon: <Users className="w-5 h-5" />, variant: 'default' as const },
-    { label: 'Payable', value: formatCurrency(supplierPayable, currency), icon: <Truck className="w-5 h-5" />, variant: 'default' as const },
-    { label: 'Stock Value', value: formatCurrency(stockValue, currency), icon: <Package className="w-5 h-5" />, variant: 'info' as const },
-    { label: 'Account Balance', value: formatCurrency(cashBalance, currency), icon: <Banknote className="w-5 h-5" />, variant: 'default' as const },
-    { label: 'Owner Withdrawals', value: formatCurrency(ownerWithdrawals, currency), icon: <Wallet className="w-5 h-5" />, variant: 'danger' as const },
-  ];
+  if (loading) {
+    return (
+      <div className="space-y-6 p-4 sm:p-6 max-w-7xl mx-auto animate-pulse">
+        <div className="h-48 rounded-3xl bg-slate-800/50" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="h-28 rounded-2xl bg-slate-800/30" />
+          <div className="h-28 rounded-2xl bg-slate-800/30" />
+          <div className="h-28 rounded-2xl bg-slate-800/30" />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-100">Dashboard</h1>
-        <p className="text-sm text-slate-400 mt-1">
-          {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-        </p>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
-        {stats.map((stat, i) => (
-          <div key={stat.label} className={`animate-fade-in stagger-${Math.min(i + 1, 8)}`}>
-            <StatCard label={stat.label} value={stat.value} icon={stat.icon} variant={stat.variant} />
-          </div>
-        ))}
-      </div>
-
-      {/* Sales Chart */}
-      <Card className="mb-6">
-        <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-blue-400" />
-            <h2 className="text-base font-semibold text-slate-100">Sales Overview</h2>
-          </div>
-          <div className="flex gap-1">
-            {(['today', '7d', '30d', '12m'] as ChartPeriod[]).map((p) => (
-              <button
-                key={p}
-                onClick={() => setChartPeriod(p)}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                  chartPeriod === p ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-700'
-                }`}
-              >
-                {p === 'today' ? 'Today' : p === '7d' ? '7D' : p === '30d' ? '30D' : '12M'}
-              </button>
-            ))}
-          </div>
+    <div className="space-y-6 p-4 sm:p-6 max-w-7xl mx-auto">
+      {/* Greeting & Quick Actions */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+            Business Command Center
+          </h1>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            Real-time insights and live performance overview.
+          </p>
         </div>
-        <div className="p-5">
-          {chartData.every((d) => d.total === 0) ? (
-            <EmptyState icon={<TrendingUp className="w-8 h-8" />} title="No Sales Data" message="No sales in this period." />
-          ) : (
-            <div className="flex items-end gap-1 h-40 overflow-x-auto">
-              {chartData.map((point, i) => {
-                const height = chartMax > 0 ? (point.total / chartMax) * 100 : 0;
-                return (
-                  <div key={i} className="flex-1 min-w-[20px] flex flex-col items-center gap-1 group">
-                    <div className="w-full flex-1 flex items-end relative">
-                      <div
-                        className="w-full bg-blue-500/70 group-hover:bg-blue-400 rounded-t transition-all duration-300"
-                        style={{ height: `${Math.max(height, 2)}%` }}
-                      >
-                        <div className="opacity-0 group-hover:opacity-100 absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-900 text-slate-100 text-[10px] px-2 py-1 rounded whitespace-nowrap transition-opacity z-10">
-                          {formatCurrency(point.total, currency)}
-                        </div>
-                      </div>
-                    </div>
-                    <span className="text-[9px] text-slate-500 whitespace-nowrap hidden sm:block">{point.label}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </Card>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Recent Sales */}
-        <Card>
-          <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5 text-emerald-400" />
-              <h2 className="text-base font-semibold text-slate-100">Recent Sales</h2>
-            </div>
-            <button onClick={() => onNavigate('sales')} className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
-              View All <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-          {recentSales.length === 0 ? (
-            <EmptyState icon={<ShoppingCart className="w-8 h-8" />} title="No Sales Yet" message="Create your first sale to get started." />
-          ) : (
-            <div className="divide-y divide-slate-700/30">
-              {recentSales.map((sale) => (
-                <button
-                  key={sale.id}
-                  onClick={() => onNavigate('saleDetails', { saleId: sale.id })}
-                  className="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-slate-700/40 transition-colors"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-200 truncate">{sale.invoice_number}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{formatDateTime(sale.sale_date)}</p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-semibold text-slate-200">{formatCurrency(sale.total, currency)}</p>
-                    {sale.due_amount > 0 ? <Badge variant="danger">Due</Badge> : <Badge variant="success">Paid</Badge>}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        {/* Recent Purchases */}
-        <Card>
-          <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Receipt className="w-5 h-5 text-blue-400" />
-              <h2 className="text-base font-semibold text-slate-100">Recent Purchases</h2>
-            </div>
-            <button onClick={() => onNavigate('purchases')} className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
-              View All <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-          {recentPurchases.length === 0 ? (
-            <EmptyState icon={<Receipt className="w-8 h-8" />} title="No Purchases Yet" message="Create your first purchase to get started." />
-          ) : (
-            <div className="divide-y divide-slate-700/30">
-              {recentPurchases.map((pur) => (
-                <button
-                  key={pur.id}
-                  onClick={() => onNavigate('purchases')}
-                  className="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-slate-700/40 transition-colors"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-200 truncate">{pur.purchase_number}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{formatDateTime(pur.purchase_date)}</p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-semibold text-slate-200">{formatCurrency(pur.total, currency)}</p>
-                    {pur.payable_amount > 0 ? <Badge variant="danger">Payable</Badge> : <Badge variant="success">Paid</Badge>}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Top Products */}
-        <Card>
-          <div className="p-5 border-b border-slate-700/50">
-            <div className="flex items-center gap-2">
-              <Package className="w-5 h-5 text-amber-400" />
-              <h2 className="text-base font-semibold text-slate-100">Top Selling Products</h2>
-            </div>
-          </div>
-          {topProducts.length === 0 ? (
-            <EmptyState icon={<Package className="w-8 h-8" />} title="No Data" message="Top products will appear here after sales." />
-          ) : (
-            <div className="divide-y divide-slate-700/30">
-              {topProducts.map((p, i) => (
-                <div key={i} className="flex items-center justify-between gap-3 p-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-7 h-7 rounded-lg bg-slate-700/60 flex items-center justify-center text-xs font-bold text-slate-400 flex-shrink-0">{i + 1}</div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-200 truncate">{p.name}</p>
-                      <p className="text-xs text-slate-400">{formatQuantity(p.unitsSold, '')} sold</p>
-                    </div>
-                  </div>
-                  <p className="text-sm font-semibold text-emerald-400 flex-shrink-0">{formatCurrency(p.revenue, currency)}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        {/* Low Stock Alert */}
-        <Card>
-          <div className="p-5 border-b border-slate-700/50">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-400" />
-              <h2 className="text-base font-semibold text-slate-100">Low Stock Alert</h2>
-              {lowStockProducts.length > 0 && <Badge variant="warning">{lowStockProducts.length}</Badge>}
-            </div>
-          </div>
-          {lowStockProducts.length === 0 ? (
-            <EmptyState icon={<Package className="w-8 h-8" />} title="All Stock Good" message="No products are below minimum stock level." />
-          ) : (
-            <div className="divide-y divide-slate-700/30">
-              {lowStockProducts.slice(0, 5).map((product) => (
-                <button
-                  key={product.id}
-                  onClick={() => onNavigate('products')}
-                  className="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-slate-700/40 transition-colors"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-200 truncate">{product.name}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      Current: {formatQuantity(product.current_stock, product.unit)} · Min: {formatQuantity(product.minimum_stock, product.unit)}
-                    </p>
-                  </div>
-                  <Badge variant={product.stock_status === 'OUT_OF_STOCK' ? 'danger' : 'warning'}>
-                    {product.stock_status === 'OUT_OF_STOCK' ? 'OUT' : 'LOW'}
-                  </Badge>
-                </button>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: 'New Sale', icon: <DollarSign className="w-6 h-6 text-emerald-400" />, route: 'createSale' as Route },
-          { label: 'New Purchase', icon: <Truck className="w-6 h-6 text-blue-400" />, route: 'createPurchase' as Route },
-          { label: 'Add Expense', icon: <Wallet className="w-6 h-6 text-red-400" />, route: 'expenses' as Route },
-          { label: 'Reports', icon: <TrendingUp className="w-6 h-6 text-amber-400" />, route: 'reports' as Route },
-        ].map((action) => (
+        <div className="flex items-center gap-2">
           <button
-            key={action.label}
-            onClick={() => onNavigate(action.route)}
-            className="bg-slate-800/80 rounded-xl shadow-sm border border-slate-700/50 p-4 flex flex-col items-center gap-2 hover:border-slate-600 hover:bg-slate-800 transition-colors"
+            onClick={() => onNavigate('createSale')}
+            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 transition-all hover:bg-indigo-500 active:scale-95"
           >
-            {action.icon}
-            <span className="text-xs font-medium text-slate-200">{action.label}</span>
+            <Plus className="h-4 w-4" /> New Sale
           </button>
-        ))}
+        </div>
+      </div>
+
+      {/* Signature Feature: Financial Pulse */}
+      <FinancialPulse
+        revenue={stats.revenue}
+        expenses={stats.expenses}
+        profit={stats.profit}
+        cashBalance={stats.cashBalance}
+      />
+
+      {/* Quick Metrics */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div
+          onClick={() => onNavigate('sales')}
+          className="group cursor-pointer rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm transition-all hover:border-indigo-500/50 hover:shadow-md"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase text-slate-400">Total Sales</span>
+            <div className="rounded-xl bg-indigo-500/10 p-2.5 text-indigo-500 group-hover:bg-indigo-500 group-hover:text-white transition-colors">
+              <ShoppingBag className="h-5 w-5" />
+            </div>
+          </div>
+          <p className="mt-3 text-2xl font-black text-slate-900 dark:text-white">
+            {stats.totalOrders} <span className="text-xs font-normal text-slate-400">orders</span>
+          </p>
+          <div className="mt-2 flex items-center text-xs text-indigo-500 font-semibold">
+            View Sales <ArrowUpRight className="h-3.5 w-3.5 ml-0.5" />
+          </div>
+        </div>
+
+        <div
+          onClick={() => onNavigate('products')}
+          className="group cursor-pointer rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm transition-all hover:border-emerald-500/50 hover:shadow-md"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase text-slate-400">Products</span>
+            <div className="rounded-xl bg-emerald-500/10 p-2.5 text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+              <Package className="h-5 w-5" />
+            </div>
+          </div>
+          <p className="mt-3 text-2xl font-black text-slate-900 dark:text-white">
+            {stats.totalProducts} <span className="text-xs font-normal text-slate-400">items</span>
+          </p>
+          <div className="mt-2 flex items-center text-xs text-emerald-500 font-semibold">
+            Manage Inventory <ArrowUpRight className="h-3.5 w-3.5 ml-0.5" />
+          </div>
+        </div>
+
+        <div
+          onClick={() => onNavigate('customers')}
+          className="group cursor-pointer rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm transition-all hover:border-purple-500/50 hover:shadow-md"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase text-slate-400">Customers</span>
+            <div className="rounded-xl bg-purple-500/10 p-2.5 text-purple-500 group-hover:bg-purple-500 group-hover:text-white transition-colors">
+              <Users className="h-5 w-5" />
+            </div>
+          </div>
+          <p className="mt-3 text-2xl font-black text-slate-900 dark:text-white">
+            {stats.totalCustomers} <span className="text-xs font-normal text-slate-400">registered</span>
+          </p>
+          <div className="mt-2 flex items-center text-xs text-purple-500 font-semibold">
+            Customer Directory <ArrowUpRight className="h-3.5 w-3.5 ml-0.5" />
+          </div>
+        </div>
       </div>
     </div>
   );
-}
+};
