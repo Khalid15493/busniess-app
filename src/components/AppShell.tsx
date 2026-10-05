@@ -1,290 +1,165 @@
-import { type ReactNode, useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { GlobalSearch } from '@/components/GlobalSearch';
-import { useToast } from '@/context/ToastContext';
-import { Search } from 'lucide-react';
-import {
-  LayoutDashboard,
-  ShoppingCart,
-  Package,
-  Users,
-  Truck,
-  Receipt,
-  Wallet,
-  BarChart3,
-  Settings,
-  LogOut,
-  Menu,
+import React, { useState } from 'react';
+import { 
+  LayoutDashboard, 
+  Package, 
+  Tags, 
+  Users, 
+  ShoppingCart, 
+  Truck, 
+  TrendingDown, 
+  Wallet, 
+  Building2, 
+  Trash2, 
+  BarChart3, 
+  Settings, 
+  LogOut, 
+  Menu, 
   X,
-  Briefcase,
-  Boxes,
-  Banknote,
-  AlertTriangle,
+  UserCheck
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { Logo } from './Logo';
 
-export type Route =
-  | 'dashboard'
-  | 'sales'
-  | 'createSale'
-  | 'saleDetails'
-  | 'purchases'
-  | 'createPurchase'
-  | 'purchaseDetails'
-  | 'products'
+export type Route = 
+  | 'dashboard' 
+  | 'products' 
+  | 'categories' 
+  | 'customers' 
+  | 'sales' 
+  | 'createSale' 
+  | 'saleDetails' 
+  | 'suppliers' 
+  | 'supplierDetails' 
+  | 'purchases' 
+  | 'createPurchase' 
+  | 'purchaseDetails' 
+  | 'expenses' 
+  | 'withdrawals' 
+  | 'accounts' 
+  | 'deliveries' 
+  | 'wastage' 
+  | 'reports' 
+  | 'settings'
   | 'productDetails'
-  | 'categories'
-  | 'customers'
   | 'customerDetails'
-  | 'suppliers'
-  | 'supplierDetails'
-  | 'expenses'
-  | 'withdrawals'
-  | 'delivery'
-  | 'accounts'
-  | 'wastage'
-  | 'reports'
-  | 'settings';
-
-interface NavItem {
-  label: string;
-  route: Route;
-  icon: ReactNode;
-  enabled: boolean;
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', route: 'dashboard', icon: <LayoutDashboard className="w-5 h-5" />, enabled: true },
-  { label: 'Sales', route: 'sales', icon: <ShoppingCart className="w-5 h-5" />, enabled: true },
-  { label: 'Purchases', route: 'purchases', icon: <Receipt className="w-5 h-5" />, enabled: true },
-  { label: 'Products', route: 'products', icon: <Package className="w-5 h-5" />, enabled: true },
-  { label: 'Categories', route: 'categories', icon: <Boxes className="w-5 h-5" />, enabled: true },
-  { label: 'Customers', route: 'customers', icon: <Users className="w-5 h-5" />, enabled: true },
-  { label: 'Suppliers', route: 'suppliers', icon: <Truck className="w-5 h-5" />, enabled: true },
-  { label: 'Expenses', route: 'expenses', icon: <Wallet className="w-5 h-5" />, enabled: true },
-  { label: 'Owner Withdrawals', route: 'withdrawals', icon: <Banknote className="w-5 h-5" />, enabled: true },
-  { label: 'Wastage/Damage', route: 'wastage', icon: <AlertTriangle className="w-5 h-5" />, enabled: true },
-  { label: 'Delivery', route: 'delivery', icon: <Truck className="w-5 h-5" />, enabled: true },
-  { label: 'Accounts', route: 'accounts', icon: <Wallet className="w-5 h-5" />, enabled: true },
-  { label: 'Reports', route: 'reports', icon: <BarChart3 className="w-5 h-5" />, enabled: true },
-  { label: 'Settings', route: 'settings', icon: <Settings className="w-5 h-5" />, enabled: true },
-];
-
-const BOTTOM_NAV: Route[] = ['dashboard', 'products', 'sales', 'customers'];
+  | 'personal';
 
 interface AppShellProps {
+  children: React.ReactNode;
   currentRoute: Route;
-  onNavigate: (route: Route, params?: { productId?: string; customerId?: string; saleId?: string; supplierId?: string; purchaseId?: string }) => void;
-  children: ReactNode;
+  onNavigate: (route: Route) => void;
 }
 
-export function AppShell({ currentRoute, onNavigate, children }: AppShellProps) {
-  const { profile, businessProfile, signOut } = useAuth();
-  const { toast } = useToast();
+export const AppShell: React.FC<AppShellProps> = ({ children, currentRoute, onNavigate }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showLogout, setShowLogout] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const { signOut, user } = useAuth();
 
-  // Keyboard shortcuts (desktop only, not when typing in inputs)
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      switch (e.key.toLowerCase()) {
-        case 'n': onNavigate('createSale'); break;
-        case 'p': onNavigate('createPurchase'); break;
-        case 's': setSearchOpen(true); break;
-        case 'd': onNavigate('dashboard'); break;
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onNavigate]);
-
-  const handleSignOut = async () => {
-    await signOut();
-    toast('Signed out successfully', 'info');
-  };
-
-  const handleNavClick = (item: NavItem) => {
-    if (!item.enabled) {
-      toast(`${item.label} is coming soon in a future phase`, 'info');
-      return;
-    }
-    onNavigate(item.route);
-    setSidebarOpen(false);
-  };
-
-  const bottomItems = NAV_ITEMS.filter((n) => BOTTOM_NAV.includes(n.route));
-  const currentLabel = NAV_ITEMS.find((n) => n.route === currentRoute)?.label ?? '';
+  const navItems = [
+    { id: 'dashboard' as Route, label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'personal' as Route, label: 'Personal Finance', icon: UserCheck },
+    { id: 'products' as Route, label: 'Products', icon: Package },
+    { id: 'categories' as Route, label: 'Categories', icon: Tags },
+    { id: 'customers' as Route, label: 'Customers', icon: Users },
+    { id: 'sales' as Route, label: 'Sales', icon: ShoppingCart },
+    { id: 'purchases' as Route, label: 'Purchases', icon: Truck },
+    { id: 'expenses' as Route, label: 'Expenses', icon: TrendingDown },
+    { id: 'withdrawals' as Route, label: 'Withdrawals', icon: Wallet },
+    { id: 'accounts' as Route, label: 'Accounts', icon: Building2 },
+    { id: 'deliveries' as Route, label: 'Deliveries', icon: Truck },
+    { id: 'wastage' as Route, label: 'Wastage', icon: Trash2 },
+    { id: 'reports' as Route, label: 'Reports', icon: BarChart3 },
+    { id: 'settings' as Route, label: 'Settings', icon: Settings },
+  ];
 
   return (
-    <div className="min-h-screen bg-slate-900 flex">
-      {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex w-64 bg-slate-950 border-r border-slate-800 flex-col fixed h-screen">
-        <SidebarContent
-          businessName={businessProfile?.business_name ?? 'My Business'}
-          ownerName={profile?.full_name ?? ''}
-          logoUrl={businessProfile?.logo_url}
-          navItems={NAV_ITEMS}
-          currentRoute={currentRoute}
-          onNavClick={handleNavClick}
-          onLogout={() => setShowLogout(true)}
-        />
-      </aside>
-
-      {/* Mobile Sidebar Drawer */}
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex">
+      {/* Mobile Sidebar Backdrop */}
       {sidebarOpen && (
-        <div className="lg:hidden fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/70" onClick={() => setSidebarOpen(false)} />
-          <aside className="absolute left-0 top-0 h-full w-72 bg-slate-950 flex flex-col animate-slide-in-left border-r border-slate-800">
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-200"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <SidebarContent
-              businessName={businessProfile?.business_name ?? 'My Business'}
-              ownerName={profile?.full_name ?? ''}
-              logoUrl={businessProfile?.logo_url}
-              navItems={NAV_ITEMS}
-              currentRoute={currentRoute}
-              onNavClick={handleNavClick}
-              onLogout={() => setShowLogout(true)}
-            />
-          </aside>
-        </div>
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
 
-      {/* Main Content */}
-      <div className="flex-1 lg:ml-64 flex flex-col min-w-0">
-        {/* Mobile Top Bar */}
-        <header className="lg:hidden sticky top-0 z-30 bg-slate-950 border-b border-slate-800 px-4 h-14 flex items-center justify-between">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="p-2 -ml-2 text-slate-400 hover:bg-slate-800 rounded-lg"
+      {/* Sidebar */}
+      <aside className={`
+        fixed lg:static inset-y-0 left-0 z-50
+        w-64 bg-slate-900 border-r border-slate-800
+        transform transition-transform duration-200 ease-in-out
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        flex flex-col
+      `}>
+        {/* Brand Header */}
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+          <Logo />
+          <button 
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden text-slate-400 hover:text-white"
           >
-            <Menu className="w-5 h-5" />
+            <X className="h-6 w-6" />
           </button>
-          <span className="text-sm font-semibold text-slate-200">{currentLabel}</span>
+        </div>
+
+        {/* Navigation Items */}
+        <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = currentRoute === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  onNavigate(item.id);
+                  setSidebarOpen(false);
+                }}
+                className={`
+                  w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all
+                  ${isActive 
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' 
+                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'}
+                `}
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Footer / User Profile */}
+        <div className="p-4 border-t border-slate-800 flex items-center justify-between">
+          <div className="truncate">
+            <p className="text-xs text-slate-500 uppercase font-semibold">Logged in as</p>
+            <p className="text-sm font-medium text-slate-300 truncate">{user?.email}</p>
+          </div>
           <button
-            onClick={() => setSearchOpen(true)}
-            className="p-2 text-slate-400 hover:bg-slate-800 rounded-lg"
+            onClick={() => signOut()}
+            title="Sign Out"
+            className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
           >
-            <Search className="w-5 h-5" />
+            <LogOut className="h-5 w-5" />
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile Header */}
+        <header className="lg:hidden border-b border-slate-800 bg-slate-900 p-4 flex items-center justify-between">
+          <Logo />
+          <button 
+            onClick={() => setSidebarOpen(true)}
+            className="text-slate-400 hover:text-white"
+          >
+            <Menu className="h-6 w-6" />
           </button>
         </header>
 
-        <main className="flex-1 p-4 sm:p-6 pb-24 lg:pb-6 max-w-6xl mx-auto w-full">
+        {/* Dynamic Page Content */}
+        <main className="flex-1 overflow-y-auto bg-slate-950">
           {children}
         </main>
-
-        {/* Bottom Navigation (Mobile) */}
-        <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 z-30">
-          <div className="flex">
-            {bottomItems.map((item) => (
-              <button
-                key={item.route}
-                onClick={() => handleNavClick(item)}
-                className={`flex-1 flex flex-col items-center gap-1 py-2.5 transition-colors ${
-                  currentRoute === item.route
-                    ? 'text-blue-400'
-                    : 'text-slate-500'
-                }`}
-              >
-                <div className={currentRoute === item.route ? 'scale-110 transition-transform' : ''}>
-                  {item.icon}
-                </div>
-                <span className="text-[10px] font-medium">{item.label}</span>
-              </button>
-            ))}
-          </div>
-        </nav>
       </div>
-
-      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} onNavigate={onNavigate} />
-
-      <ConfirmDialog
-        open={showLogout}
-        onClose={() => setShowLogout(false)}
-        onConfirm={handleSignOut}
-        title="Sign Out"
-        message="Are you sure you want to sign out of your account?"
-        confirmLabel="Sign Out"
-        danger
-      />
     </div>
   );
-}
-
-function SidebarContent({
-  businessName,
-  ownerName,
-  logoUrl,
-  navItems,
-  currentRoute,
-  onNavClick,
-  onLogout,
-}: {
-  businessName: string;
-  ownerName: string;
-  logoUrl: string | null | undefined;
-  navItems: NavItem[];
-  currentRoute: Route;
-  onNavClick: (item: NavItem) => void;
-  onLogout: () => void;
-}) {
-  return (
-    <>
-      <div className="p-5 border-b border-slate-800">
-        <div className="flex items-center gap-3">
-          {logoUrl ? (
-            <img src={logoUrl} alt="Logo" className="w-10 h-10 rounded-lg object-cover" />
-          ) : (
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Briefcase className="w-5 h-5 text-white" />
-            </div>
-          )}
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-200 truncate">{businessName}</p>
-            <p className="text-xs text-slate-500 truncate">{ownerName || 'Business Owner'}</p>
-          </div>
-        </div>
-      </div>
-
-      <nav className="flex-1 overflow-y-auto p-3">
-        {navItems.map((item) => (
-          <button
-            key={item.route}
-            onClick={() => onNavClick(item)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors mb-0.5 ${
-              currentRoute === item.route
-                ? 'bg-blue-600/20 text-blue-400'
-                : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-            } ${!item.enabled ? 'opacity-50' : ''}`}
-          >
-            {item.icon}
-            <span className="flex-1 text-left">{item.label}</span>
-            {!item.enabled && (
-              <span className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">
-                Soon
-              </span>
-            )}
-          </button>
-        ))}
-      </nav>
-
-      <div className="p-3 border-t border-slate-800">
-        <button
-          onClick={onLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-400 hover:bg-red-500/10 transition-colors"
-        >
-          <LogOut className="w-5 h-5" />
-          Sign Out
-        </button>
-      </div>
-    </>
-  );
-}
+};
