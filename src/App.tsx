@@ -26,6 +26,7 @@ import { Reports } from './pages/Reports';
 import { PersonalFinance } from './pages/PersonalFinance';
 import { Spinner } from './components/ui/Feedback';
 import { SplashLoader } from './components/SplashLoader';
+import { QuickActionFAB } from './components/QuickActionFAB';
 
 function App() {
   const { session, loading } = useAuth();
@@ -149,6 +150,7 @@ function App() {
       {showSplash && <SplashLoader onComplete={() => setShowSplash(false)} />}
       <AppShell currentRoute={route} onNavigate={navigate}>
         {renderRoute()}
+        <QuickActionFAB onNavigate={navigate} />
       </AppShell>
     </>
   );
