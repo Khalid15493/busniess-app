@@ -23,6 +23,7 @@ import { Accounts } from './pages/Accounts';
 import { Deliveries } from './pages/Deliveries';
 import { Wastage } from './pages/Wastage';
 import { Reports } from './pages/Reports';
+import { PersonalFinance } from './pages/PersonalFinance';
 import { Spinner } from './components/ui/Feedback';
 import { SplashLoader } from './components/SplashLoader';
 
@@ -76,6 +77,8 @@ function App() {
     switch (route) {
       case 'dashboard':
         return <Dashboard onNavigate={navigate} />;
+      case 'personal':
+        return <PersonalFinance />;
       case 'products':
         return <Products onNavigate={navigate} />;
       case 'categories':
