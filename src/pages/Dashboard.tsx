@@ -1,9 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { 
-  TrendingUp, TrendingDown, DollarSign, Wallet, 
-  ShoppingBag, Users, AlertTriangle, RefreshCw, Package, CreditCard 
-} from 'lucide-react';
 
 export function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -28,7 +24,6 @@ export function Dashboard() {
     try {
       setLoading(true);
 
-      // Fetch all required tables concurrently with safe fallbacks
       const [salesRes, expRes, prodRes, custRes, withRes] = await Promise.all([
         supabase.from('sales').select('*'),
         supabase.from('expenses').select('*'),
@@ -119,7 +114,6 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Header & Refresh */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Business Command Center</h1>
@@ -128,67 +122,40 @@ export function Dashboard() {
         <button
           onClick={fetchDashboardData}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl transition-all text-sm font-medium border border-slate-700 shadow-md"
+          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl transition-all text-sm font-medium border border-slate-700 shadow-md"
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          <span>Refresh</span>
+          {loading ? 'Refreshing...' : 'Refresh Data'}
         </button>
       </div>
 
-      {/* Main Metric Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Today's Income */}
-        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-lg">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Today's Income</span>
-            <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl">
-              <TrendingUp className="w-5 h-5" />
-            </div>
-          </div>
+        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 shadow-lg">
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Today's Income</div>
           <div className="text-2xl font-bold text-white">৳ {stats.todaysIncome.toLocaleString()}</div>
           <div className="text-xs text-slate-500 mt-1">Collected today</div>
         </div>
 
-        {/* Today's Expense */}
-        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-lg">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Today's Expense</span>
-            <div className="p-2 bg-rose-500/10 text-rose-400 rounded-xl">
-              <TrendingDown className="w-5 h-5" />
-            </div>
-          </div>
+        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 shadow-lg">
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Today's Expense</div>
           <div className="text-2xl font-bold text-white">৳ {stats.todaysExpense.toLocaleString()}</div>
           <div className="text-xs text-slate-500 mt-1">Spent today</div>
         </div>
 
-        {/* Today's Net Profit */}
-        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-lg">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Today's Net Profit</span>
-            <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-xl">
-              <DollarSign className="w-5 h-5" />
-            </div>
-          </div>
+        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 shadow-lg">
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Today's Net Profit</div>
           <div className={`text-2xl font-bold ${stats.todaysNetProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
             ৳ {stats.todaysNetProfit.toLocaleString()}
           </div>
           <div className="text-xs text-slate-500 mt-1">Income minus expense</div>
         </div>
 
-        {/* Cash Available */}
-        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-lg">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Cash Available</span>
-            <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl">
-              <Wallet className="w-5 h-5" />
-            </div>
-          </div>
+        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 shadow-lg">
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Cash Available</div>
           <div className="text-2xl font-bold text-white">৳ {stats.cashAvailable.toLocaleString()}</div>
           <div className="text-xs text-slate-500 mt-1">Net balance in hand</div>
         </div>
       </div>
 
-      {/* Secondary Metrics Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-slate-900/50 border border-slate-800/60 rounded-xl p-4">
           <div className="text-xs text-slate-400">Net Due Balance</div>
@@ -202,40 +169,26 @@ export function Dashboard() {
           <div className="text-xs text-slate-400">Total Revenue</div>
           <div className="text-lg font-semibold text-white mt-1">৳ {stats.totalRevenue.toLocaleString()}</div>
         </div>
-        <div className="bg-slate-900/50 border border-slate-800/60 rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <div className="text-xs text-slate-400">Owner's Withdrawals</div>
-            <div className="text-lg font-semibold text-purple-400 mt-1">৳ {stats.ownersWithdrawals.toLocaleString()}</div>
-          </div>
-          <CreditCard className="w-5 h-5 text-purple-400 opacity-60" />
+        <div className="bg-slate-900/50 border border-slate-800/60 rounded-xl p-4">
+          <div className="text-xs text-slate-400">Owner's Withdrawals</div>
+          <div className="text-lg font-semibold text-purple-400 mt-1">৳ {stats.ownersWithdrawals.toLocaleString()}</div>
         </div>
       </div>
 
-      {/* Business Overview & Details Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Overview Counts */}
         <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-lg">
-          <div className="flex items-center gap-2">
-            <Package className="w-5 h-5 text-blue-400" />
-            <h2 className="text-lg font-semibold text-white">Business Overview</h2>
-          </div>
+          <h2 className="text-lg font-semibold text-white">Business Overview</h2>
           <div className="space-y-3">
             <div className="flex justify-between items-center py-2 border-b border-slate-800/80">
-              <span className="text-sm text-slate-400 flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 text-emerald-400" /> Total Sales Transactions
-              </span>
+              <span className="text-sm text-slate-400">Total Sales Transactions</span>
               <span className="text-sm font-bold text-white">{stats.totalSalesCount}</span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-slate-800/80">
-              <span className="text-sm text-slate-400 flex items-center gap-2">
-                <Package className="w-4 h-4 text-blue-400" /> Total Products
-              </span>
+              <span className="text-sm text-slate-400">Total Products</span>
               <span className="text-sm font-bold text-white">{stats.totalProductsCount}</span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-slate-800/80">
-              <span className="text-sm text-slate-400 flex items-center gap-2">
-                <Users className="w-4 h-4 text-indigo-400" /> Total Customers
-              </span>
+              <span className="text-sm text-slate-400">Total Customers</span>
               <span className="text-sm font-bold text-white">{stats.totalCustomersCount}</span>
             </div>
             <div className="flex justify-between items-center py-2">
@@ -245,12 +198,8 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Low Stock Warning */}
         <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-lg">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-amber-400" />
-            <h2 className="text-lg font-semibold text-white">Low Stock Warning</h2>
-          </div>
+          <h2 className="text-lg font-semibold text-white">Low Stock Warning</h2>
           <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
             {lowStockProducts.length === 0 ? (
               <p className="text-sm text-slate-500 py-8 text-center">All products have sufficient stock.</p>
@@ -267,7 +216,6 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Recent Sales Feed */}
         <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-lg">
           <h2 className="text-lg font-semibold text-white">Recent Sales</h2>
           <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
