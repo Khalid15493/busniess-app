@@ -1,32 +1,31 @@
 import { useEffect, useState, useCallback } from 'react';
-import {
-  TrendingUp,
-  TrendingDown,
-  Wallet,
-  DollarSign,
-  ShoppingCart,
-  Package,
-  Users,
-  AlertTriangle,
-  Receipt,
-  ArrowUpRight,
-  PiggyBank,
-  Percent,
-  RefreshCw,
+import { 
+  TrendingUp, 
+  Wallet, 
+  DollarSign, 
+  ShoppingCart, 
+  Package, 
+  Users, 
+  AlertTriangle, 
+  Receipt, 
+  ArrowUpRight, 
+  PiggyBank, 
+  Percent, 
+  RefreshCw 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import {
-  type SaleRow,
-  type ProductRow,
-  type CustomerRow,
-  type ExpenseRow,
-  type WithdrawalRow,
-  type DashboardData,
-  toNum,
-  formatCurrency,
-  formatPercent,
-  safeSelect,
-} from '../lib/types';
+import { 
+  type SaleRow, 
+  type ProductRow, 
+  type CustomerRow, 
+  type ExpenseRow, 
+  type WithdrawalRow, 
+  type DashboardData, 
+  toNum, 
+  formatCurrency, 
+  formatPercent, 
+  safeSelect 
+} from '../types';
 
 function StatCard({
   label,
