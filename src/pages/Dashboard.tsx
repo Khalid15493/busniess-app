@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { 
   TrendingUp, TrendingDown, DollarSign, Wallet, 
-  AlertTriangle, RefreshCw 
+  ShoppingBag, Users, AlertTriangle, RefreshCw, Package, CreditCard 
 } from 'lucide-react';
 
 export function Dashboard() {
@@ -28,20 +28,19 @@ export function Dashboard() {
     try {
       setLoading(true);
 
-      // Safe fetching with fallback for missing tables
-      const salesRes = await supabase.from('sales').select('*');
+      // Fetch all required tables concurrently with safe fallbacks
+      const [salesRes, expRes, prodRes, custRes, withRes] = await Promise.all([
+        supabase.from('sales').select('*'),
+        supabase.from('expenses').select('*'),
+        supabase.from('products').select('*'),
+        supabase.from('customers').select('*'),
+        supabase.from('owner_withdrawals').select('*')
+      ]);
+
       const sales = salesRes.error ? [] : (salesRes.data || []);
-
-      const expRes = await supabase.from('expenses').select('*');
       const expenses = expRes.error ? [] : (expRes.data || []);
-
-      const prodRes = await supabase.from('products').select('*');
       const products = prodRes.error ? [] : (prodRes.data || []);
-
-      const custRes = await supabase.from('customers').select('*');
       const customers = custRes.error ? [] : (custRes.data || []);
-
-      const withRes = await supabase.from('owner_withdrawals').select('*');
       const withdrawals = withRes.error ? [] : (withRes.data || []);
 
       const todayStr = new Date().toISOString().split('T')[0];
@@ -51,14 +50,14 @@ export function Dashboard() {
       let totalDue = 0;
 
       sales.forEach((sale: any) => {
-        const saleAmount = Number(sale.total_amount || sale.amount || 0);
+        const saleAmount = Number(sale.total_amount || sale.amount || sale.grand_total || 0);
         const paidAmount = Number(sale.paid_amount || sale.paid || saleAmount);
         const dueAmount = Number(sale.due_amount || sale.due || (saleAmount - paidAmount));
 
         totalRev += saleAmount;
         totalDue += dueAmount;
 
-        const saleDate = sale.created_at ? sale.created_at.split('T')[0] : '';
+        const saleDate = sale.created_at ? sale.created_at.split('T')[0] : (sale.date || '');
         if (saleDate === todayStr) {
           todaysInc += paidAmount;
         }
@@ -68,7 +67,7 @@ export function Dashboard() {
       let totalExp = 0;
 
       expenses.forEach((exp: any) => {
-        const expAmount = Number(exp.amount || 0);
+        const expAmount = Number(exp.amount || exp.cost || 0);
         totalExp += expAmount;
 
         const expDate = exp.date || (exp.created_at ? exp.created_at.split('T')[0] : '');
@@ -79,7 +78,7 @@ export function Dashboard() {
 
       let totalWithdrawn = 0;
       withdrawals.forEach((w: any) => {
-        totalWithdrawn += Number(w.amount || 0);
+        totalWithdrawn += Number(w.amount || w.withdrawal_amount || 0);
       });
 
       const todaysNetProf = todaysInc - todaysExp;
@@ -87,7 +86,7 @@ export function Dashboard() {
       const cashAvail = totalRev - totalExp - totalWithdrawn;
       const profitMargin = totalRev > 0 ? (netProfitTotal / totalRev) * 100 : 0;
 
-      const lowStock = products.filter((p: any) => Number(p.stock || p.quantity || 0) <= 5);
+      const lowStock = products.filter((p: any) => Number(p.stock || p.quantity || p.current_stock || 0) <= 5);
 
       setStats({
         todaysIncome: todaysInc,
@@ -120,6 +119,7 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6 pb-12">
+      {/* Header & Refresh */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Business Command Center</h1>
@@ -128,14 +128,16 @@ export function Dashboard() {
         <button
           onClick={fetchDashboardData}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl transition-all text-sm font-medium border border-slate-700"
+          className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl transition-all text-sm font-medium border border-slate-700 shadow-md"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           <span>Refresh</span>
         </button>
       </div>
 
+      {/* Main Metric Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Today's Income */}
         <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-lg">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Today's Income</span>
@@ -147,6 +149,7 @@ export function Dashboard() {
           <div className="text-xs text-slate-500 mt-1">Collected today</div>
         </div>
 
+        {/* Today's Expense */}
         <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-lg">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Today's Expense</span>
@@ -158,6 +161,7 @@ export function Dashboard() {
           <div className="text-xs text-slate-500 mt-1">Spent today</div>
         </div>
 
+        {/* Today's Net Profit */}
         <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-lg">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Today's Net Profit</span>
@@ -171,6 +175,7 @@ export function Dashboard() {
           <div className="text-xs text-slate-500 mt-1">Income minus expense</div>
         </div>
 
+        {/* Cash Available */}
         <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-lg">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Cash Available</span>
@@ -183,6 +188,7 @@ export function Dashboard() {
         </div>
       </div>
 
+      {/* Secondary Metrics Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-slate-900/50 border border-slate-800/60 rounded-xl p-4">
           <div className="text-xs text-slate-400">Net Due Balance</div>
@@ -196,26 +202,40 @@ export function Dashboard() {
           <div className="text-xs text-slate-400">Total Revenue</div>
           <div className="text-lg font-semibold text-white mt-1">৳ {stats.totalRevenue.toLocaleString()}</div>
         </div>
-        <div className="bg-slate-900/50 border border-slate-800/60 rounded-xl p-4">
-          <div className="text-xs text-slate-400">Owner's Withdrawals</div>
-          <div className="text-lg font-semibold text-purple-400 mt-1">৳ {stats.ownersWithdrawals.toLocaleString()}</div>
+        <div className="bg-slate-900/50 border border-slate-800/60 rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <div className="text-xs text-slate-400">Owner's Withdrawals</div>
+            <div className="text-lg font-semibold text-purple-400 mt-1">৳ {stats.ownersWithdrawals.toLocaleString()}</div>
+          </div>
+          <CreditCard className="w-5 h-5 text-purple-400 opacity-60" />
         </div>
       </div>
 
+      {/* Business Overview & Details Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 space-y-4">
-          <h2 className="text-lg font-semibold text-white">Business Overview</h2>
+        {/* Overview Counts */}
+        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-lg">
+          <div className="flex items-center gap-2">
+            <Package className="w-5 h-5 text-blue-400" />
+            <h2 className="text-lg font-semibold text-white">Business Overview</h2>
+          </div>
           <div className="space-y-3">
-            <div className="flex justify-between items-center py-2 border-b border-slate-800">
-              <span className="text-sm text-slate-400">Total Sales Transactions</span>
+            <div className="flex justify-between items-center py-2 border-b border-slate-800/80">
+              <span className="text-sm text-slate-400 flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4 text-emerald-400" /> Total Sales Transactions
+              </span>
               <span className="text-sm font-bold text-white">{stats.totalSalesCount}</span>
             </div>
-            <div className="flex justify-between items-center py-2 border-b border-slate-800">
-              <span className="text-sm text-slate-400">Total Products</span>
+            <div className="flex justify-between items-center py-2 border-b border-slate-800/80">
+              <span className="text-sm text-slate-400 flex items-center gap-2">
+                <Package className="w-4 h-4 text-blue-400" /> Total Products
+              </span>
               <span className="text-sm font-bold text-white">{stats.totalProductsCount}</span>
             </div>
-            <div className="flex justify-between items-center py-2 border-b border-slate-800">
-              <span className="text-sm text-slate-400">Total Customers</span>
+            <div className="flex justify-between items-center py-2 border-b border-slate-800/80">
+              <span className="text-sm text-slate-400 flex items-center gap-2">
+                <Users className="w-4 h-4 text-indigo-400" /> Total Customers
+              </span>
               <span className="text-sm font-bold text-white">{stats.totalCustomersCount}</span>
             </div>
             <div className="flex justify-between items-center py-2">
@@ -225,20 +245,21 @@ export function Dashboard() {
           </div>
         </div>
 
-        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 space-y-4">
+        {/* Low Stock Warning */}
+        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-lg">
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-400" />
             <h2 className="text-lg font-semibold text-white">Low Stock Warning</h2>
           </div>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
+          <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
             {lowStockProducts.length === 0 ? (
-              <p className="text-sm text-slate-500 py-4 text-center">All products have sufficient stock.</p>
+              <p className="text-sm text-slate-500 py-8 text-center">All products have sufficient stock.</p>
             ) : (
               lowStockProducts.map((p, idx) => (
                 <div key={idx} className="flex justify-between items-center bg-slate-950/40 p-3 rounded-xl border border-slate-800/50">
-                  <span className="text-sm font-medium text-slate-200">{p.name || p.title}</span>
+                  <span className="text-sm font-medium text-slate-200">{p.name || p.title || 'Unnamed Product'}</span>
                   <span className="text-xs px-2.5 py-1 bg-amber-500/10 text-amber-400 rounded-full font-bold">
-                    Stock: {p.stock ?? p.quantity}
+                    Stock: {p.stock ?? p.quantity ?? p.current_stock ?? 0}
                   </span>
                 </div>
               ))
@@ -246,20 +267,21 @@ export function Dashboard() {
           </div>
         </div>
 
-        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 space-y-4">
+        {/* Recent Sales Feed */}
+        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 space-y-4 shadow-lg">
           <h2 className="text-lg font-semibold text-white">Recent Sales</h2>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
+          <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
             {recentSales.length === 0 ? (
-              <p className="text-sm text-slate-500 py-4 text-center">No recent sales recorded yet.</p>
+              <p className="text-sm text-slate-500 py-8 text-center">No recent sales recorded yet.</p>
             ) : (
               recentSales.map((sale, idx) => (
                 <div key={idx} className="flex justify-between items-center bg-slate-950/40 p-3 rounded-xl border border-slate-800/50">
                   <div>
-                    <div className="text-sm font-medium text-white">{sale.customer_name || 'Walk-in Customer'}</div>
+                    <div className="text-sm font-medium text-white">{sale.customer_name || sale.customer || 'Walk-in Customer'}</div>
                     <div className="text-xs text-slate-500">{sale.created_at ? new Date(sale.created_at).toLocaleDateString() : ''}</div>
                   </div>
                   <div className="text-sm font-bold text-emerald-400">
-                    ৳ {Number(sale.total_amount || sale.amount || 0).toLocaleString()}
+                    ৳ {Number(sale.total_amount || sale.amount || sale.grand_total || 0).toLocaleString()}
                   </div>
                 </div>
               ))
