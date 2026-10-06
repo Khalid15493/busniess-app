@@ -1,350 +1,293 @@
 import React, { useEffect, useState } from 'react';
-import { type Route } from '../components/AppShell';
-import { FinancialPulse } from '../components/FinancialPulse';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabaseClient';
 import { 
-  ShoppingBag, 
-  TrendingUp, 
-  TrendingDown, 
-  Users, 
-  Package, 
-  Plus, 
-  ArrowUpRight, 
-  AlertTriangle, 
-  Clock, 
-  DollarSign, 
-  Calendar,
-  Layers
+  TrendingUp, TrendingDown, DollarSign, Wallet, ShoppingBag, 
+  Users, AlertTriangle, ArrowUpRight, ArrowDownRight, RefreshCw 
 } from 'lucide-react';
 
-interface DashboardProps {
-  onNavigate: (route: Route) => void;
-}
-
-export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
+export function Dashboard() {
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
-    todayRevenue: 0,
-    todayExpense: 0,
-    todayProfit: 0,
+    todaysIncome: 0,
+    todaysExpense: 0,
+    todaysNetProfit: 0,
+    netDue: 0,
+    cashAvailable: 0,
+    netProfitMargin: 0,
     totalRevenue: 0,
     totalExpenses: 0,
-    netProfit: 0,
-    cashBalance: 0,
-    totalDue: 0,
-    totalOrders: 0,
-    totalProducts: 0,
-    totalCustomers: 0,
+    totalSalesCount: 0,
+    totalProductsCount: 0,
+    totalCustomersCount: 0,
+    ownersWithdrawals: 0,
   });
-
   const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
   const [recentSales, setRecentSales] = useState<any[]>([]);
-  const [topProducts, setTopProducts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+
+      // 1. Fetch Sales
+      const { data: sales, error: salesError } = await supabase.from('sales').select('*');
+      if (salesError) throw salesError;
+
+      // 2. Fetch Expenses
+      const { data: expenses, error: expError } = await supabase.from('expenses').select('*');
+      if (expError) throw expError;
+
+      // 3. Fetch Products (for low stock)
+      const { data: products, error: prodError } = await supabase.from('products').select('*');
+      if (prodError) throw prodError;
+
+      // 4. Fetch Customers
+      const { data: customers, error: custError } = await supabase.from('customers').select('*');
+      if (custError && custError.code !== 'PGRST116') {
+        // Handle if table name differs, or ignore if empty
+      }
+
+      // 5. Fetch Owner Withdrawals
+      const { data: withdrawals, error: withError } = await supabase.from('owner_withdrawals').select('*');
+      if (withError && withError.code !== 'PGRST116') {
+        // Table might be named differently or empty
+      }
+
+      // Calculations
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      let todaysInc = 0;
+      let totalRev = 0;
+      let totalDue = 0;
+
+      sales?.forEach((sale: any) => {
+        const saleAmount = Number(sale.total_amount || sale.amount || 0);
+        const paidAmount = Number(sale.paid_amount || sale.paid || saleAmount);
+        const dueAmount = Number(sale.due_amount || sale.due || (saleAmount - paidAmount));
+
+        totalRev += saleAmount;
+        totalDue += dueAmount;
+
+        const saleDate = sale.created_at ? sale.created_at.split('T')[0] : '';
+        if (saleDate === todayStr) {
+          todaysInc += paidAmount;
+        }
+      });
+
+      let todaysExp = 0;
+      let totalExp = 0;
+
+      expenses?.forEach((exp: any) => {
+        const expAmount = Number(exp.amount || 0);
+        totalExp += expAmount;
+
+        const expDate = exp.date || (exp.created_at ? exp.created_at.split('T')[0] : '');
+        if (expDate === todayStr) {
+          todaysExp += expAmount;
+        }
+      });
+
+      let totalWithdrawn = 0;
+      withdrawals?.forEach((w: any) => {
+        totalWithdrawn += Number(w.amount || 0);
+      });
+
+      const todaysNetProf = todaysInc - todaysExp;
+      const netProfitTotal = totalRev - totalExp;
+      const cashAvail = totalRev - totalExp - totalWithdrawn;
+      const profitMargin = totalRev > 0 ? (netProfitTotal / totalRev) * 100 : 0;
+
+      // Low stock filter (threshold e.g. <= 5)
+      const lowStock = products?.filter((p: any) => Number(p.stock || p.quantity || 0) <= 5) || [];
+
+      setStats({
+        todaysIncome: todaysInc,
+        todaysExpense: todaysExp,
+        todaysNetProfit: todaysNetProf,
+        netDue: totalDue,
+        cashAvailable: cashAvail,
+        netProfitMargin: Number(profitMargin.toFixed(1)),
+        totalRevenue: totalRev,
+        totalExpenses: totalExp,
+        totalSalesCount: sales?.length || 0,
+        totalProductsCount: products?.length || 0,
+        totalCustomersCount: customers?.length || 0,
+        ownersWithdrawals: totalWithdrawn,
+      });
+
+      setLowStockProducts(lowStock);
+      setRecentSales(sales?.slice(0, 5) || []);
+
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchDashboardStats() {
-      try {
-        setLoading(true);
-        const todayStr = new Date().toISOString().split('T')[0];
-
-        // 1. Fetch Sales Data
-        const { data: salesData } = await supabase
-          .from('sales')
-          .select('id, total_amount, due_amount, created_at, customer_id')
-          .order('created_at', { ascending: false });
-
-        // Calculate Revenue & Today's Sales
-        const totalRev = salesData?.reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0) || 0;
-        const totalDueAmt = salesData?.reduce((acc, curr) => acc + (Number(curr.due_amount) || 0), 0) || 0;
-
-        const todaySales = salesData?.filter(s => s.created_at && s.created_at.startsWith(todayStr)) || [];
-        const todayRev = todaySales.reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0);
-
-        // 2. Fetch Expenses Data
-        const { data: expensesData } = await supabase
-          .from('expenses')
-          .select('amount, date, created_at');
-
-        const totalExp = expensesData?.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0) || 0;
-
-        const todayExpList = expensesData?.filter(e => 
-          (e.date && e.date === todayStr) || (e.created_at && e.created_at.startsWith(todayStr))
-        ) || [];
-        const todayExp = todayExpList.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
-
-        // 3. Fetch Products & Low Stock Alert (Stock <= 5)
-        const { data: productsData } = await supabase
-          .from('products')
-          .select('*')
-          .order('stock_quantity', { ascending: true });
-
-        const lowStock = productsData?.filter(p => Number(p.stock_quantity) <= 5) || [];
-        const topSelling = productsData?.slice(0, 4) || [];
-
-        // 4. Fetch Customers Count
-        const { count: customerCount } = await supabase
-          .from('customers')
-          .select('*', { count: 'exact', head: true });
-
-        const netProf = totalRev - totalExp;
-
-        setStats({
-          todayRevenue: todayRev,
-          todayExpense: todayExp,
-          todayProfit: todayRev - todayExp,
-          totalRevenue: totalRev,
-          totalExpenses: totalExp,
-          netProfit: netProf,
-          cashBalance: netProf,
-          totalDue: totalDueAmt,
-          totalOrders: salesData?.length || 0,
-          totalProducts: productsData?.length || 0,
-          totalCustomers: customerCount || 0,
-        });
-
-        setLowStockProducts(lowStock.slice(0, 4));
-        setRecentSales(salesData?.slice(0, 5) || []);
-        setTopProducts(topSelling);
-
-      } catch (err) {
-        console.error('Error fetching dashboard stats:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchDashboardStats();
+    fetchDashboardData();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="space-y-6 p-4 sm:p-6 max-w-7xl mx-auto animate-pulse">
-        <div className="h-32 rounded-3xl bg-slate-900/60" />
-        <div className="h-48 rounded-3xl bg-slate-900/60" />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="h-28 rounded-2xl bg-slate-900/40" />
-          <div className="h-28 rounded-2xl bg-slate-900/40" />
-          <div className="h-28 rounded-2xl bg-slate-900/40" />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6 p-4 sm:p-6 max-w-7xl mx-auto pb-24">
-      {/* 1. Executive Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-6 pb-12">
+      {/* Header & Refresh */}
+      <div className="flex items-center justify-between">
         <div>
+          <h1 className="text-2xl font-bold text-white">Business Command Center</h1>
+          <p className="text-slate-400 text-sm">Real-time financial performance and analytics</p>
+        </div>
+        <button
+          onClick={fetchDashboardData}
+          disabled={loading}
+          className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl transition-all text-sm font-medium border border-slate-700"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
+      </div>
+
+      {/* Main Metric Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Today's Income */}
+        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-lg">
+          <div className="flex items-center justify-between text-slate-400 mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider">Today's Income</span>
+            <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-white">৳ {stats.todaysIncome.toLocaleString()}</div>
+          <div className="text-xs text-slate-500 mt-1">Collected today</div>
+        </div>
+
+        {/* Today's Expense */}
+        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-lg">
+          <div className="flex items-center justify-between text-slate-400 mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider">Today's Expense</span>
+            <div className="p-2 bg-rose-500/10 text-rose-400 rounded-xl">
+              <TrendingDown className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-white">৳ {stats.todaysExpense.toLocaleString()}</div>
+          <div className="text-xs text-slate-500 mt-1">Spent today</div>
+        </div>
+
+        {/* Today's Net Profit */}
+        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-lg">
+          <div className="flex items-center justify-between text-slate-400 mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider">Today's Net Profit</span>
+            <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-xl">
+              <DollarSign className="w-5 h-5" />
+            </div>
+          </div>
+          <div className={`text-2xl font-bold ${stats.todaysNetProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            ৳ {stats.todaysNetProfit.toLocaleString()}
+          </div>
+          <div className="text-xs text-slate-500 mt-1">Income minus expense</div>
+        </div>
+
+        {/* Cash Available */}
+        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-lg">
+          <div className="flex items-center justify-between text-slate-400 mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider">Cash Available</span>
+            <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl">
+              <Wallet className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-white">৳ {stats.cashAvailable.toLocaleString()}</div>
+          <div className="text-xs text-slate-500 mt-1">Net balance in hand</div>
+        </div>
+      </div>
+
+      {/* Secondary Metrics Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-slate-900/50 border border-slate-800/60 rounded-xl p-4">
+          <div className="text-xs text-slate-400">Net Due Balance</div>
+          <div className="text-lg font-semibold text-amber-400 mt-1">৳ {stats.netDue.toLocaleString()}</div>
+        </div>
+        <div className="bg-slate-900/50 border border-slate-800/60 rounded-xl p-4">
+          <div className="text-xs text-slate-400">Net Profit Margin</div>
+          <div className="text-lg font-semibold text-emerald-400 mt-1">{stats.netProfitMargin}%</div>
+        </div>
+        <div className="bg-slate-900/50 border border-slate-800/60 rounded-xl p-4">
+          <div className="text-xs text-slate-400">Total Revenue</div>
+          <div className="text-lg font-semibold text-white mt-1">৳ {stats.totalRevenue.toLocaleString()}</div>
+        </div>
+        <div className="bg-slate-900/50 border border-slate-800/60 rounded-xl p-4">
+          <div className="text-xs text-slate-400">Owner's Withdrawals</div>
+          <div className="text-lg font-semibold text-purple-400 mt-1">৳ {stats.ownersWithdrawals.toLocaleString()}</div>
+        </div>
+      </div>
+
+      {/* Counts & Warnings */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Summary Info */}
+        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 space-y-4">
+          <h2 className="text-lg font-semibold text-white">Business Overview</h2>
+          <div className="space-y-3">
+            <div className="flex justify-between items-center py-2 border-b border-slate-800">
+              <span className="text-sm text-slate-400">Total Sales Transactions</span>
+              <span className="text-sm font-bold text-white">{stats.totalSalesCount}</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-slate-800">
+              <span className="text-sm text-slate-400">Total Products</span>
+              <span className="text-sm font-bold text-white">{stats.totalProductsCount}</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-slate-800">
+              <span className="text-sm text-slate-400">Total Customers</span>
+              <span className="text-sm font-bold text-white">{stats.totalCustomersCount}</span>
+            </div>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-sm text-slate-400">Total Expenses</span>
+              <span className="text-sm font-bold text-rose-400">৳ {stats.totalExpenses.toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Low Stock Warning */}
+        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 space-y-4">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2.5 py-0.5 rounded-md border border-indigo-500/20">
-              Overview
-            </span>
-            <span className="text-xs text-slate-500">Live Business Metrics</span>
+            <AlertTriangle className="w-5 h-5 text-amber-400" />
+            <h2 className="text-lg font-semibold text-white">Low Stock Warning</h2>
           </div>
-          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
-            Business Command Center
-          </h1>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onNavigate('createSale')}
-            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-500 active:scale-95 transition-all"
-          >
-            <Plus className="h-4 w-4" /> New Sale
-          </button>
-        </div>
-      </div>
-
-      {/* 2. Today's Financial Summary Ribbon */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/90 backdrop-blur-md p-4 sm:p-5 shadow-xl">
-        <div className="flex items-center gap-2 mb-3">
-          <Calendar className="h-4 w-4 text-indigo-400" />
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Today's Performance</h3>
-        </div>
-        
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-          <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-800">
-            <span className="text-xs text-slate-400">Today's Income</span>
-            <p className="text-lg font-black text-emerald-400 mt-1">৳ {stats.todayRevenue.toLocaleString('en-IN')}</p>
-          </div>
-          
-          <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-800">
-            <span className="text-xs text-slate-400">Today's Expense</span>
-            <p className="text-lg font-black text-rose-400 mt-1">৳ {stats.todayExpense.toLocaleString('en-IN')}</p>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-800">
-            <span className="text-xs text-slate-400">Today's Net Profit</span>
-            <p className={`text-lg font-black mt-1 ${stats.todayProfit >= 0 ? 'text-indigo-400' : 'text-rose-400'}`}>
-              ৳ {stats.todayProfit.toLocaleString('en-IN')}
-            </p>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-800">
-            <span className="text-xs text-slate-400">Total Net Balance</span>
-            <p className="text-lg font-black text-white mt-1">৳ {stats.cashBalance.toLocaleString('en-IN')}</p>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-800 col-span-2 sm:col-span-1">
-            <span className="text-xs text-slate-400">Total Market Due</span>
-            <p className="text-lg font-black text-amber-400 mt-1">৳ {stats.totalDue.toLocaleString('en-IN')}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Signature Feature: Financial Pulse (Business Health) */}
-      <FinancialPulse
-        revenue={stats.totalRevenue}
-        expenses={stats.totalExpenses}
-        profit={stats.netProfit}
-        cashBalance={stats.cashBalance}
-      />
-
-      {/* 4. Interactive Quick Metric Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div
-          onClick={() => onNavigate('sales')}
-          className="group cursor-pointer rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-sm transition-all hover:border-indigo-500/50 hover:shadow-indigo-500/10 hover:shadow-lg"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase text-slate-400">Total Sales</span>
-            <div className="rounded-xl bg-indigo-500/10 p-2.5 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-              <ShoppingBag className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="mt-3 text-2xl font-black text-white">
-            {stats.totalOrders} <span className="text-xs font-normal text-slate-400">orders recorded</span>
-          </p>
-          <div className="mt-2 flex items-center text-xs text-indigo-400 font-semibold">
-            Manage Orders <ArrowUpRight className="h-3.5 w-3.5 ml-0.5" />
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {lowStockProducts.length === 0 ? (
+              <p className="text-sm text-slate-500 py-4 text-center">All products have sufficient stock.</p>
+            ) : (
+              lowStockProducts.map((p, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-slate-950/40 p-3 rounded-xl border border-slate-800/50">
+                  <span className="text-sm font-medium text-slate-200">{p.name || p.title}</span>
+                  <span className="text-xs px-2.5 py-1 bg-amber-500/10 text-amber-400 rounded-full font-bold">
+                    Stock: {p.stock ?? p.quantity}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
-        <div
-          onClick={() => onNavigate('products')}
-          className="group cursor-pointer rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-sm transition-all hover:border-emerald-500/50 hover:shadow-emerald-500/10 hover:shadow-lg"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase text-slate-400">Total Products</span>
-            <div className="rounded-xl bg-emerald-500/10 p-2.5 text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-              <Package className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="mt-3 text-2xl font-black text-white">
-            {stats.totalProducts} <span className="text-xs font-normal text-slate-400">items in catalog</span>
-          </p>
-          <div className="mt-2 flex items-center text-xs text-emerald-400 font-semibold">
-            View Inventory <ArrowUpRight className="h-3.5 w-3.5 ml-0.5" />
-          </div>
-        </div>
-
-        <div
-          onClick={() => onNavigate('customers')}
-          className="group cursor-pointer rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-sm transition-all hover:border-purple-500/50 hover:shadow-purple-500/10 hover:shadow-lg"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase text-slate-400">Customers</span>
-            <div className="rounded-xl bg-purple-500/10 p-2.5 text-purple-400 group-hover:bg-purple-600 group-hover:text-white transition-colors">
-              <Users className="h-5 w-5" />
-            </div>
-          </div>
-          <p className="mt-3 text-2xl font-black text-white">
-            {stats.totalCustomers} <span className="text-xs font-normal text-slate-400">active accounts</span>
-          </p>
-          <div className="mt-2 flex items-center text-xs text-purple-400 font-semibold">
-            Customer Directory <ArrowUpRight className="h-3.5 w-3.5 ml-0.5" />
-          </div>
-        </div>
-      </div>
-
-      {/* 5. Smart Alerts & Recent Activity Grid */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Low Stock Alerts */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-400" />
-              <h3 className="text-base font-bold text-white">Low Stock Warning</h3>
-            </div>
-            <button 
-              onClick={() => onNavigate('products')} 
-              className="text-xs text-slate-400 hover:text-white transition-colors"
-            >
-              View All
-            </button>
-          </div>
-
-          {lowStockProducts.length === 0 ? (
-            <div className="p-6 text-center rounded-xl bg-slate-800/30 border border-dashed border-slate-800">
-              <Package className="h-8 w-8 text-slate-600 mx-auto mb-2" />
-              <p className="text-sm text-slate-400 font-medium">All items are sufficiently stocked.</p>
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              {lowStockProducts.map((p) => (
-                <div key={p.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-800/40 border border-slate-800/80">
+        {/* Recent Sales Feed */}
+        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 space-y-4">
+          <h2 className="text-lg font-semibold text-white">Recent Sales</h2>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {recentSales.length === 0 ? (
+              <p className="text-sm text-slate-500 py-4 text-center">No recent sales recorded yet.</p>
+            ) : (
+              recentSales.map((sale, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-slate-950/40 p-3 rounded-xl border border-slate-800/50">
                   <div>
-                    <p className="text-sm font-semibold text-white">{p.name}</p>
-                    <p className="text-xs text-slate-400">SKU: {p.sku || 'N/A'}</p>
+                    <div className="text-sm font-medium text-white">{sale.customer_name || 'Walk-in Customer'}</div>
+                    <div className="text-xs text-slate-500">{sale.created_at ? new Date(sale.created_at).toLocaleDateString() : ''}</div>
                   </div>
-                  <div className="text-right">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-400 border border-amber-500/20">
-                      {p.stock_quantity} remaining
-                    </span>
+                  <div className="text-sm font-bold text-emerald-400">
+                    ৳ {Number(sale.total_amount || sale.amount || 0).toLocaleString()}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Recent Transactions Feed */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-indigo-400" />
-              <h3 className="text-base font-bold text-white">Recent Sales</h3>
-            </div>
-            <button 
-              onClick={() => onNavigate('sales')} 
-              className="text-xs text-slate-400 hover:text-white transition-colors"
-            >
-              View Sales
-            </button>
+              ))
+            )}
           </div>
-
-          {recentSales.length === 0 ? (
-            <div className="p-6 text-center rounded-xl bg-slate-800/30 border border-dashed border-slate-800">
-              <ShoppingBag className="h-8 w-8 text-slate-600 mx-auto mb-2" />
-              <p className="text-sm text-slate-400 font-medium">No sales recorded yet.</p>
-              <button 
-                onClick={() => onNavigate('createSale')}
-                className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-400 hover:underline"
-              >
-                + Record First Sale
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              {recentSales.map((s) => (
-                <div key={s.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-800/40 border border-slate-800/80">
-                  <div>
-                    <p className="text-sm font-semibold text-white">Order #{s.id.slice(0, 6)}</p>
-                    <p className="text-xs text-slate-400">{s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB') : 'Today'}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-emerald-400">+ ৳ {Number(s.total_amount).toLocaleString('en-IN')}</p>
-                    {Number(s.due_amount) > 0 && (
-                      <p className="text-[10px] text-amber-400">Due: ৳ {Number(s.due_amount).toLocaleString('en-IN')}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     </div>
   );
-};
+}
