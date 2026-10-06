@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { 
-  TrendingUp, TrendingDown, DollarSign, Wallet, ShoppingBag, 
-  Users, AlertTriangle, ArrowUpRight, ArrowDownRight, RefreshCw 
+  TrendingUp, TrendingDown, DollarSign, Wallet, 
+  AlertTriangle, RefreshCw 
 } from 'lucide-react';
 
 export function Dashboard() {
@@ -28,31 +28,18 @@ export function Dashboard() {
     try {
       setLoading(true);
 
-      // 1. Fetch Sales
       const { data: sales, error: salesError } = await supabase.from('sales').select('*');
       if (salesError) throw salesError;
 
-      // 2. Fetch Expenses
       const { data: expenses, error: expError } = await supabase.from('expenses').select('*');
       if (expError) throw expError;
 
-      // 3. Fetch Products (for low stock)
       const { data: products, error: prodError } = await supabase.from('products').select('*');
       if (prodError) throw prodError;
 
-      // 4. Fetch Customers
-      const { data: customers, error: custError } = await supabase.from('customers').select('*');
-      if (custError && custError.code !== 'PGRST116') {
-        // Handle if table name differs, or ignore if empty
-      }
+      const { data: customers } = await supabase.from('customers').select('*');
+      const { data: withdrawals } = await supabase.from('owner_withdrawals').select('*');
 
-      // 5. Fetch Owner Withdrawals
-      const { data: withdrawals, error: withError } = await supabase.from('owner_withdrawals').select('*');
-      if (withError && withError.code !== 'PGRST116') {
-        // Table might be named differently or empty
-      }
-
-      // Calculations
       const todayStr = new Date().toISOString().split('T')[0];
 
       let todaysInc = 0;
@@ -96,7 +83,6 @@ export function Dashboard() {
       const cashAvail = totalRev - totalExp - totalWithdrawn;
       const profitMargin = totalRev > 0 ? (netProfitTotal / totalRev) * 100 : 0;
 
-      // Low stock filter (threshold e.g. <= 5)
       const lowStock = products?.filter((p: any) => Number(p.stock || p.quantity || 0) <= 5) || [];
 
       setStats({
@@ -130,7 +116,6 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Header & Refresh */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Business Command Center</h1>
@@ -146,9 +131,7 @@ export function Dashboard() {
         </button>
       </div>
 
-      {/* Main Metric Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Today's Income */}
         <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-lg">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Today's Income</span>
@@ -160,7 +143,6 @@ export function Dashboard() {
           <div className="text-xs text-slate-500 mt-1">Collected today</div>
         </div>
 
-        {/* Today's Expense */}
         <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-lg">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Today's Expense</span>
@@ -172,7 +154,6 @@ export function Dashboard() {
           <div className="text-xs text-slate-500 mt-1">Spent today</div>
         </div>
 
-        {/* Today's Net Profit */}
         <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-lg">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Today's Net Profit</span>
@@ -186,7 +167,6 @@ export function Dashboard() {
           <div className="text-xs text-slate-500 mt-1">Income minus expense</div>
         </div>
 
-        {/* Cash Available */}
         <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-lg">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Cash Available</span>
@@ -199,7 +179,6 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Secondary Metrics Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-slate-900/50 border border-slate-800/60 rounded-xl p-4">
           <div className="text-xs text-slate-400">Net Due Balance</div>
@@ -219,9 +198,7 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Counts & Warnings */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Summary Info */}
         <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 space-y-4">
           <h2 className="text-lg font-semibold text-white">Business Overview</h2>
           <div className="space-y-3">
@@ -244,7 +221,6 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Low Stock Warning */}
         <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 space-y-4">
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-400" />
@@ -266,7 +242,6 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Recent Sales Feed */}
         <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-5 space-y-4">
           <h2 className="text-lg font-semibold text-white">Recent Sales</h2>
           <div className="space-y-2 max-h-48 overflow-y-auto">
