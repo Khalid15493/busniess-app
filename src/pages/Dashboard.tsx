@@ -14,7 +14,7 @@ import {
   Percent,
   RefreshCw,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../lib/supabase';
 import {
   type SaleRow,
   type ProductRow,
@@ -26,7 +26,7 @@ import {
   formatCurrency,
   formatPercent,
   safeSelect,
-} from '@/lib/types';
+} from '../lib/types';
 
 function StatCard({
   label,
