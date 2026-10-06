@@ -23,8 +23,7 @@ import {
   type DashboardData, 
   toNum, 
   formatCurrency, 
-  formatPercent, 
-  safeSelect 
+  formatPercent 
 } from '../types';
 
 function StatCard({
