@@ -28,17 +28,21 @@ export function Dashboard() {
     try {
       setLoading(true);
 
-      const { data: sales, error: salesError } = await supabase.from('sales').select('*');
-      if (salesError) throw salesError;
+      // Safe fetching with fallback for missing tables
+      const salesRes = await supabase.from('sales').select('*');
+      const sales = salesRes.error ? [] : (salesRes.data || []);
 
-      const { data: expenses, error: expError } = await supabase.from('expenses').select('*');
-      if (expError) throw expError;
+      const expRes = await supabase.from('expenses').select('*');
+      const expenses = expRes.error ? [] : (expRes.data || []);
 
-      const { data: products, error: prodError } = await supabase.from('products').select('*');
-      if (prodError) throw prodError;
+      const prodRes = await supabase.from('products').select('*');
+      const products = prodRes.error ? [] : (prodRes.data || []);
 
-      const { data: customers } = await supabase.from('customers').select('*');
-      const { data: withdrawals } = await supabase.from('owner_withdrawals').select('*');
+      const custRes = await supabase.from('customers').select('*');
+      const customers = custRes.error ? [] : (custRes.data || []);
+
+      const withRes = await supabase.from('owner_withdrawals').select('*');
+      const withdrawals = withRes.error ? [] : (withRes.data || []);
 
       const todayStr = new Date().toISOString().split('T')[0];
 
@@ -46,7 +50,7 @@ export function Dashboard() {
       let totalRev = 0;
       let totalDue = 0;
 
-      sales?.forEach((sale: any) => {
+      sales.forEach((sale: any) => {
         const saleAmount = Number(sale.total_amount || sale.amount || 0);
         const paidAmount = Number(sale.paid_amount || sale.paid || saleAmount);
         const dueAmount = Number(sale.due_amount || sale.due || (saleAmount - paidAmount));
@@ -63,7 +67,7 @@ export function Dashboard() {
       let todaysExp = 0;
       let totalExp = 0;
 
-      expenses?.forEach((exp: any) => {
+      expenses.forEach((exp: any) => {
         const expAmount = Number(exp.amount || 0);
         totalExp += expAmount;
 
@@ -74,7 +78,7 @@ export function Dashboard() {
       });
 
       let totalWithdrawn = 0;
-      withdrawals?.forEach((w: any) => {
+      withdrawals.forEach((w: any) => {
         totalWithdrawn += Number(w.amount || 0);
       });
 
@@ -83,7 +87,7 @@ export function Dashboard() {
       const cashAvail = totalRev - totalExp - totalWithdrawn;
       const profitMargin = totalRev > 0 ? (netProfitTotal / totalRev) * 100 : 0;
 
-      const lowStock = products?.filter((p: any) => Number(p.stock || p.quantity || 0) <= 5) || [];
+      const lowStock = products.filter((p: any) => Number(p.stock || p.quantity || 0) <= 5);
 
       setStats({
         todaysIncome: todaysInc,
@@ -94,14 +98,14 @@ export function Dashboard() {
         netProfitMargin: Number(profitMargin.toFixed(1)),
         totalRevenue: totalRev,
         totalExpenses: totalExp,
-        totalSalesCount: sales?.length || 0,
-        totalProductsCount: products?.length || 0,
-        totalCustomersCount: customers?.length || 0,
+        totalSalesCount: sales.length,
+        totalProductsCount: products.length,
+        totalCustomersCount: customers.length,
         ownersWithdrawals: totalWithdrawn,
       });
 
       setLowStockProducts(lowStock);
-      setRecentSales(sales?.slice(0, 5) || []);
+      setRecentSales(sales.slice(0, 5));
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
